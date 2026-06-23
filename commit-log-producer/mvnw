@@ -1,0 +1,24 @@
+#!/bin/sh
+# Maven Wrapper launch script
+# This lets you run ./mvnw without installing Maven!
+# Auto-downloads the correct Maven version on first run.
+
+# Find the Maven wrapper jar
+WRAPPER_JAR=".mvn/wrapper/maven-wrapper.jar"
+WRAPPER_PROPERTIES=".mvn/wrapper/maven-wrapper.properties"
+
+# If wrapper jar doesn't exist, download it
+if [ ! -f "$WRAPPER_JAR" ]; then
+    echo "Downloading Maven Wrapper..."
+    mkdir -p .mvn/wrapper
+    # Download using curl or wget
+    if command -v curl > /dev/null 2>&1; then
+        curl -L -o "$WRAPPER_JAR" \
+            "https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.3.2/maven-wrapper-3.3.2.jar"
+    elif command -v wget > /dev/null 2>&1; then
+        wget -O "$WRAPPER_JAR" \
+            "https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.3.2/maven-wrapper-3.3.2.jar"
+    fi
+fi
+
+exec java -jar "$WRAPPER_JAR" "$@"

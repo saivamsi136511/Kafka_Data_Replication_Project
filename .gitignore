@@ -1,0 +1,13 @@
+# Build output
+**/target/
+*.jar
+!mirrormaker2/connect-mirror-4.0.0.jar
+
+# Run logs
+logs/
+
+# IDE/System files
+.idea/
+*.class
+.DS_Store
+Thumbs.db

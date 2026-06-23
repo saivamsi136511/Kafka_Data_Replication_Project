@@ -1,0 +1,133 @@
+services:
+  # ===========================================================================
+  # PRIMARY KAFKA CLUSTER (PR)
+  # ===========================================================================
+  primary-kafka:
+    image: apache/kafka:4.0.0
+    container_name: primary-kafka
+    hostname: primary-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@primary-kafka:9093
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://primary-kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CLUSTER_ID: "primary-cluster-id-00001"
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      # Healthcheck
+      KAFKA_OPTS: "-Dcom.sun.management.jmxremote"
+    networks:
+      - kafka-net
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:29092 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================================================
+  # STANDBY KAFKA CLUSTER (DR)
+  # ===========================================================================
+  standby-kafka:
+    image: apache/kafka:4.0.0
+    container_name: standby-kafka
+    hostname: standby-kafka
+    ports:
+      - "9093:9093"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@standby-kafka:9094
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9093,CONTROLLER://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://standby-kafka:29092,EXTERNAL://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CLUSTER_ID: "standby-cluster-id-00002"
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+    networks:
+      - kafka-net
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:29092 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================================================
+  # MIRRORMAKER 2 (MM2) - CROSS-CLUSTER REPLICATION
+  # ===========================================================================
+  mirrormaker2:
+    image: vamsi511/enhanced-mirrormaker2:1.0.0
+    container_name: mirrormaker2
+    depends_on:
+      primary-kafka:
+        condition: service_healthy
+      standby-kafka:
+        condition: service_healthy
+    volumes:
+      - ./mirrormaker2/mm2.properties:/opt/kafka/config/mm2.properties
+    command: /opt/kafka/bin/connect-mirror-maker.sh /opt/kafka/config/mm2.properties
+    networks:
+      - kafka-net
+
+  # ===========================================================================
+  # COMMIT LOG PRODUCER CLI (Task 1)
+  # ===========================================================================
+  producer:
+    build:
+      context: ./commit-log-producer
+      dockerfile: Dockerfile
+    container_name: commit-log-producer
+    depends_on:
+      primary-kafka:
+        condition: service_healthy
+    environment:
+      BOOTSTRAP_SERVER: primary-kafka:29092
+    entrypoint:
+      - java
+      - -jar
+      - /app/commit-log-producer.jar
+      - --bootstrap-server
+      - primary-kafka:29092
+    networks:
+      - kafka-net
+    profiles:
+      - producer
+
+  # ===========================================================================
+  # AUTOMATED KAFKA SETUP (Topic Initialization)
+  # ===========================================================================
+  kafka-setup:
+    image: apache/kafka:4.0.0
+    container_name: kafka-setup
+    depends_on:
+      primary-kafka:
+        condition: service_healthy
+      standby-kafka:
+        condition: service_healthy
+    entrypoint: [ "sh", "-c" ]
+    command: >
+      "
+      echo 'Waiting for clusters to be fully ready...' &&
+      sleep 5 &&
+      echo 'Creating commit-log topic on primary...' &&
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server primary-kafka:29092 --create --if-not-exists --topic commit-log --partitions 1 --replication-factor 1 --config retention.ms=60000 --config segment.ms=10000 &&
+      echo 'Creating consumer offsets topic on primary...' &&
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server primary-kafka:29092 --create --if-not-exists --topic __consumer_offsets --partitions 50 --replication-factor 1 --config cleanup.policy=compact &&
+      echo 'Creating audit log topic on standby...' &&
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server standby-kafka:29092 --create --if-not-exists --topic _mm2_audit_log --partitions 1 --replication-factor 1 &&
+      echo 'Creating consumer offsets topic on standby...' &&
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server standby-kafka:29092 --create --if-not-exists --topic __consumer_offsets --partitions 50 --replication-factor 1 --config cleanup.policy=compact &&
+      echo 'Topic setup complete!'
+      "
+    networks:
+      - kafka-net
+
+networks:
+  kafka-net:
+    name: kafka-replication-net
+    driver: bridge
