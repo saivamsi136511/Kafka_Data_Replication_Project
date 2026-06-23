@@ -114,6 +114,8 @@ The `./run_challenge.sh` script executes the following test scenarios:
 * **Action**: Starts the cluster services via `docker-compose.yml`, runs `kafka-setup` to configure topic partitions, and publishes 1000 messages to the primary cluster.
 * **Assertion**: Checks if the target topic `primary.commit-log` on the standby cluster contains exactly 1000 replicated records.
 
+![Scenario 1 - Normal Replication Flow](screenshots/scenario_1.png)
+
 ### ⚠️ Scenario 2: Log Truncation & Fail-Fast Crash (Task 2)
 * **Action**: 
   1. Stops MirrorMaker 2 to freeze the replication checkpoint (offset 50).
@@ -122,6 +124,8 @@ The `./run_challenge.sh` script executes the following test scenarios:
   4. Restarts MirrorMaker 2.
 * **Assertion**: Verifies that MirrorMaker 2 detects the gap, writes a `TRUNCATION_DETECTED` JSON event to `_mm2_audit_log` on the standby cluster, throws `DataLossTruncationException`, and **crashes**.
 
+![Scenario 2 - Log Truncation & Fail-Fast Crash](screenshots/scenario_2.png)
+
 ### 🔄 Scenario 3: Topic Reset & Auto-Resubscribe (Task 3)
 * **Action**: 
   1. Re-initializes clean clusters.
@@ -129,6 +133,8 @@ The `./run_challenge.sh` script executes the following test scenarios:
   3. MirrorMaker 2 detects the offset mismatch, resets replication checkpoints, and auto-subscribes back to offset 0.
   4. Triggers two more rapid deletions.
 * **Assertion**: Verifies that MirrorMaker 2 auto-recovers on the first reset and escalates to a high-severity `SYSTEMIC ISSUE` error on the 3rd reset.
+
+![Scenario 3 - Topic Reset & Auto-Recovery](screenshots/scenario_3.png)
 
 ---
 
