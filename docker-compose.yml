@@ -17,8 +17,8 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
-      KAFKA_CLUSTER_ID: "primary-cluster-id-00001"
-      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      KAFKA_CLUSTER_ID: "ZLiPH-ReS0KMTZEcePTBzA"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
       # Healthcheck
       KAFKA_OPTS: "-Dcom.sun.management.jmxremote"
     networks:
@@ -47,8 +47,8 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
-      KAFKA_CLUSTER_ID: "standby-cluster-id-00002"
-      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      KAFKA_CLUSTER_ID: "CTLEp27H3E-Q0BtDlr4NGA"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
     networks:
       - kafka-net
     healthcheck:
